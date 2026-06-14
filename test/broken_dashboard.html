@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>Broken Dashboard Sample</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #111827;
+      color: #f9fafb;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      background: #020617;
+      padding: 24px;
+    }
+
+    .content {
+      padding: 24px;
+    }
+
+    .card {
+      background: #1f2937;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .danger {
+      color: #ef4444;
+    }
+
+    button {
+      background: #4f46e5;
+      color: white;
+      border: 0;
+      padding: 10px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    td {
+      padding: 10px;
+      border-top: 1px solid #374151;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <h1>Admin Logs</h1>
+      <button onclick="refreshLogs()">Refresh</button>
+      <button onclick="deleteAllLogs()">Delete All</button>
+    </aside>
+
+    <main class="content">
+      <section class="card">
+        <h2>Pipeline Status</h2>
+        <p id="status">Loading...</p>
+      </section>
+
+      <section class="card">
+        <h2>Recent Events</h2>
+        <table>
+          <tbody id="events"></tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const API_BASE = "http://localhost:8000/api/v1";
+
+    async function refreshLogs() {
+      const status = document.getElementById("status");
+      const events = document.getElementById("events");
+      status.textContent = "Loading...";
+
+      // BUG: no auth header and no response status handling.
+      const response = await fetch(API_BASE + "/admin/observability");
+      const data = await response.json();
+
+      status.innerHTML = "Cluster: " + data.elasticsearch.status;
+      events.innerHTML = "";
+
+      // BUG: assumes a field shape that may not exist.
+      data.recent_events.forEach((event) => {
+        const row = document.createElement("tr");
+        row.innerHTML = "<td>" + event.timestamp + "</td><td>" + event.message + "</td>";
+        events.appendChild(row);
+      });
+    }
+
+    function deleteAllLogs() {
+      // BUG: destructive action without confirmation and no error handling.
+      fetch(API_BASE + "/admin/logs", { method: "DELETE" });
+      document.getElementById("events").innerHTML = "";
+    }
+
+    refreshLogs();
+  </script>
+</body>
+</html>
