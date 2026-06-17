@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>Broken Admin Dashboard RAG Sample</title>
+</head>
+<body>
+  <h1>Admin Observability</h1>
+  <p id="status">Loading...</p>
+  <table>
+    <tbody id="events"></tbody>
+  </table>
+
+  <script>
+    const API_BASE = "http://localhost:8000/api/v1";
+
+    async function refreshLogs() {
+      const status = document.getElementById("status");
+      const events = document.getElementById("events");
+
+      const response = await fetch(API_BASE + "/admin/observability");
+      const data = await response.json();
+
+      status.innerHTML = "Cluster: " + data.elasticsearch.status;
+      events.innerHTML = "";
+
+      data.recent_events.forEach((event) => {
+        const row = document.createElement("tr");
+        row.innerHTML = "<td>" + event.timestamp + "</td><td>" + event.message + "</td>";
+        events.appendChild(row);
+      });
+    }
+
+    refreshLogs();
+  </script>
+</body>
+</html>

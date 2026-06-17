@@ -54,8 +54,12 @@ _REVIEW_PROMPT = """/no_think
 
 {code_sections}
 
+{related_context}
+
 **중요 규칙:**
 - 위 코드에 실제로 존재하는 내용만 작성하세요. 코드에 없는 내용은 절대 작성하지 마세요.
+- 관련 프로젝트 컨텍스트가 제공된 경우, 리뷰 대상 코드가 실제 API 응답 구조/타입/사용처와 맞는지도 비교하세요.
+- 관련 프로젝트 컨텍스트와 불일치하는 필드 접근, 엔드포인트, 응답 형태가 있으면 문제점에 포함하세요.
 - 버그를 보고할 때는 반드시 해당 줄의 코드를 그대로 인용하세요.
 
 반드시 한국어로, 아래 구조에 맞게 마크다운으로 답변하세요:
@@ -93,6 +97,32 @@ def _format_chunks(chunks: list[dict]) -> str:
         )
         parts.append(f"{label}\n```\n{numbered}\n```")
     return "\n\n".join(parts)
+
+
+def _format_related_context(chunks: list[dict] | None) -> str:
+    if not chunks:
+        return ""
+
+    parts = []
+    for c in chunks:
+        filename = c.get("filename") or "unknown"
+        chunk_type = c.get("chunk_type") or "chunk"
+        name = c.get("name") or "anonymous"
+        start_line = int(c.get("start_line") or 1)
+        end_line = int(c.get("end_line") or start_line)
+        content = c.get("content") or ""
+        label = f"[{filename} | {chunk_type.upper()}: {name} | line {start_line}-{end_line}]"
+        numbered = "\n".join(
+            f"{start_line + i:4d} | {line}" for i, line in enumerate(content.split("\n"))
+        )
+        parts.append(f"{label}\n```\n{numbered}\n```")
+
+    return (
+        "## 관련 프로젝트 컨텍스트\n\n"
+        "아래 코드는 리뷰 대상 파일과 같은 프로젝트에서 검색된 관련 코드입니다. "
+        "리뷰 대상 코드의 API 응답 구조, 타입, 사용처 검증에만 사용하세요.\n\n"
+        + "\n\n".join(parts)
+    )
 
 
 _SYSTEM_PROMPT_BASE = """당신은 코드 리뷰 전문 AI 어시스턴트입니다. 다음을 도와드릴 수 있습니다:
@@ -384,10 +414,19 @@ async def stream_multimodal_rag_chat(
                     yield token, False, 0, 0
 
 
-async def generate_review(chunks: list[dict], filename: str, options: dict | None = None) -> str:
+async def generate_review(
+    chunks: list[dict],
+    filename: str,
+    options: dict | None = None,
+    related_context: list[dict] | None = None,
+) -> str:
     """qwen3:8b로 코드 리뷰를 생성하고 thinking 태그를 제거한 결과를 반환."""
     code_sections = _format_chunks(chunks)
-    prompt = _REVIEW_PROMPT.format(filename=filename, code_sections=code_sections)
+    prompt = _REVIEW_PROMPT.format(
+        filename=filename,
+        code_sections=code_sections,
+        related_context=_format_related_context(related_context),
+    )
     start = time.monotonic()
 
     async with httpx.AsyncClient(timeout=_chat_timeout()) as client:
@@ -410,6 +449,7 @@ async def generate_review(chunks: list[dict], filename: str, options: dict | Non
         "stream": False,
         "filename": filename,
         "context_chunk_count": len(chunks),
+        "related_context_chunk_count": len(related_context or []),
         "tokens_input": body.get("prompt_eval_count", 0),
         "tokens_output": body.get("eval_count", 0),
         "duration_ms": int((time.monotonic() - start) * 1000),

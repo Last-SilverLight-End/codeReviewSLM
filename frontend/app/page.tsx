@@ -359,7 +359,19 @@ export default function MainPage() {
             clearActiveStream();
             const abortController = new AbortController();
             activeStreamAbortRef.current = abortController;
-            const resp = await streamConvMessage(convId, reviewContent, undefined, undefined, undefined, thinkMode, webSearch, toModelOptions(appSettings), appSettings.rag_top_k, appSettings.web_max_results, abortController.signal);
+            const resp = await streamConvMessage(
+              convId,
+              reviewContent,
+              undefined,
+              undefined,
+              activeProject?.id,
+              thinkMode,
+              webSearch,
+              toModelOptions(appSettings),
+              appSettings.rag_top_k,
+              appSettings.web_max_results,
+              abortController.signal,
+            );
             await readStream(
               resp,
               (token) => setMessages((prev) => prev.map((m) =>
